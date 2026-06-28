@@ -250,15 +250,23 @@ async def query_items(
         q, start_price, end_price, cat, sort, page_size, filter
     )
 
+    limit_val = page_size if page_size is not None else 20
     # 1. First, check if matching query data exists in MongoDB cache
     cached_items = []
+    total_cached = 0
     if db is not None:
+        total_cached = await db["products_cache"].count_documents({
+            "$or": [
+                {"search_tag": search_tag},
+                {"search_tags": search_tag}
+            ]
+        })
         cursor = db["products_cache"].find({
             "$or": [
                 {"search_tag": search_tag},
                 {"search_tags": search_tag}
             ]
-        }).skip((page - 1) * page_size).limit(page_size)
+        }).skip((page - 1) * limit_val).limit(limit_val)
         async for doc in cursor:
             cached_items.append({
                 "title": doc.get("title"),
@@ -272,21 +280,15 @@ async def query_items(
             })
 
     if cached_items:
-        print(f"Returning cached search results for query '{q}' with tag '{search_tag}' from DB")
-        total_count = await db["products_cache"].count_documents({
-            "$or": [
-                {"search_tag": search_tag},
-                {"search_tags": search_tag}
-            ]
-        })
         import math
-        page_count = math.ceil(total_count / page_size) if page_size > 0 else 1
+        page_count = math.ceil(total_cached / limit_val) if limit_val > 0 else 1
+        print(f"Returning cached search results for query '{q}' with tag '{search_tag}' from DB")
         return {
             "items": {
                 "page": str(page),
-                "real_total_results": total_count,
-                "total_results": total_count,
-                "page_size": page_size,
+                "real_total_results": total_cached,
+                "total_results": total_cached,
+                "page_size": limit_val,
                 "page_count": page_count,
                 "item": cached_items
             },
@@ -355,9 +357,9 @@ async def query_items(
                             "page": str(items_data.get("page", page)),
                             "real_total_results": items_data.get("real_total_results", 0),
                             "total_results": items_data.get("total_results", 0),
-                            "page_size": items_data.get("page_size", page_size),
+                            "page_size": limit_val,
                             "page_count": items_data.get("page_count", 1),
-                            "item": items[:page_size]
+                            "item": items[:limit_val]
                         }
 
                     max_pages = items_data.get("page_count", 1)
@@ -394,15 +396,23 @@ async def search_by_image(
         imgid, start_price, end_price, cat, sort, page_size, filter
     )
 
+    limit_val = page_size if page_size is not None else 20
     # 1. First, check if matching query data exists in MongoDB cache
     cached_items = []
+    total_cached = 0
     if db is not None:
+        total_cached = await db["products_cache"].count_documents({
+            "$or": [
+                {"search_tag": search_tag},
+                {"search_tags": search_tag}
+            ]
+        })
         cursor = db["products_cache"].find({
             "$or": [
                 {"search_tag": search_tag},
                 {"search_tags": search_tag}
             ]
-        }).skip((page - 1) * page_size).limit(page_size)
+        }).skip((page - 1) * limit_val).limit(limit_val)
         async for doc in cursor:
             cached_items.append({
                 "title": doc.get("title"),
@@ -416,21 +426,15 @@ async def search_by_image(
             })
 
     if cached_items:
-        print(f"Returning cached search results for image '{imgid}' with tag '{search_tag}' from DB")
-        total_count = await db["products_cache"].count_documents({
-            "$or": [
-                {"search_tag": search_tag},
-                {"search_tags": search_tag}
-            ]
-        })
         import math
-        page_count = math.ceil(total_count / page_size) if page_size > 0 else 1
+        page_count = math.ceil(total_cached / limit_val) if limit_val > 0 else 1
+        print(f"Returning cached search results for image '{imgid}' with tag '{search_tag}' from DB")
         return {
             "items": {
                 "page": str(page),
-                "real_total_results": total_count,
-                "total_results": total_count,
-                "page_size": page_size,
+                "real_total_results": total_cached,
+                "total_results": total_cached,
+                "page_size": limit_val,
                 "page_count": page_count,
                 "item": cached_items
             }
@@ -499,9 +503,9 @@ async def search_by_image(
                             "page": str(items_data.get("page", page)),
                             "real_total_results": items_data.get("real_total_results", 0),
                             "total_results": items_data.get("total_results", 0),
-                            "page_size": items_data.get("page_size", page_size),
+                            "page_size": limit_val,
                             "page_count": items_data.get("page_count", 1),
-                            "item": items[:page_size]
+                            "item": items[:limit_val]
                         }
 
                     max_pages = items_data.get("page_count", 1)
