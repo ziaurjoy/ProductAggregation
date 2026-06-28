@@ -110,6 +110,7 @@ class ProductCacheDB(BaseModel):
     pic_url: str
     detail_url: str
     cached_at: Optional[str] = None
+    search_tag: Optional[str] = None
     raw_data: Optional[Dict[str, Any]] = None
 
     class Config:

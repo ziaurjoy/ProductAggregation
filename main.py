@@ -339,7 +339,7 @@ async def query_items(
     # 1. First, check if matching query data exists in MongoDB cache
     cached_items = []
     if db is not None:
-        cursor = db["products_cache"].find({"title": {"$regex": q.lower(), "$options": "i"}}).skip((page - 1) * 40).limit(40)
+        cursor = db["products_cache"].find({"search_tag": q.lower()}).skip((page - 1) * 40).limit(40)
         async for doc in cursor:
             cached_items.append({
                 "title": doc.get("title"),
