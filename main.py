@@ -1,9 +1,8 @@
+import httpx
 import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, status, Query
-import httpx
-from typing import List, Optional
-from fastapi import BackgroundTasks
+from fastapi import FastAPI, status, Query, BackgroundTasks
+
 from config import settings
 from database import db_helper, get_db
 from models import ItemListResponse, ItemDetailResponse
@@ -286,7 +285,6 @@ async def fetch_all_pages(q: str, page: int, max_pages: int, lang: str):
         return
 
     url = f"https://api.icom.la/1688/api/call.php?api_key={settings.api_key}&item_search&q={q}&page={page}&lang={lang}"
-    print(f"Fetching page {page}/{max_pages} --- {url}")
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -296,8 +294,6 @@ async def fetch_all_pages(q: str, page: int, max_pages: int, lang: str):
                 items = data.get("items", {}).get("item", [])
                 db = get_db()
                 for _item in items:
-                    print('===============')
-                    print(_item)
                     num_iid = _item.get("num_iid")
                     if num_iid and db is not None:
                         await db["products_cache"].update_one(
@@ -353,7 +349,6 @@ async def query_items(
             })
 
     if cached_items:
-        print(f"Returning cached search results for query '{q}' from DB")
         return {
             "items": {
                 "page": str(page),
@@ -379,7 +374,6 @@ async def query_items(
 
     if settings.api_key:
         url = f"https://api.icom.la/1688/api/call.php?api_key={settings.api_key}&item_search&q={q}&page={page}&lang={lang}"
-        print(f"Calling first page: {url}")
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -392,8 +386,6 @@ async def query_items(
                     items = items_data.get("item", [])
 
                     for _item in items:
-                        print('===============')
-                        print(_item)
                         # Save to MongoDB without raw_data key
                         num_iid = _item.get("num_iid")
                         if num_iid and db is not None:
@@ -450,13 +442,11 @@ async def get_item_detail(
     if db is not None:
         cached_doc = await db["product_details"].find_one({"num_iid": num_iid})
         if cached_doc:
-            print(f"Returning cached item details for num_iid={num_iid} from DB")
             return cached_doc.get("raw_details")
 
     # 2. If not found in cache, query 3rd party API
     if settings.api_key:
         url = f"https://api.icom.la/1688/api/call.php?api_key={settings.api_key}&item_get&num_iid={num_iid}&lang={lang}"
-        print(f"Calling detail URL: {url}")
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -468,8 +458,6 @@ async def get_item_detail(
                     item_detail = data.get("item", {})
 
                     if item_detail:
-                        print('===============')
-                        print(item_detail)
 
                         final_detail_response = {
                             "item": item_detail
