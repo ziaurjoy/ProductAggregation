@@ -290,10 +290,8 @@ async def fetch_all_pages(q: str, page: int, max_pages: int, lang: str):
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # response = await client.get(url)
-            response = MOCK_ITEMS_RESPONSE
-            # if response.status_code == 200:
-            if True:
+            response = await client.get(url)
+            if response.status_code == 200:
                 data = response.json()
                 items = data.get("items", {}).get("item", [])
                 db = get_db()
@@ -310,8 +308,11 @@ async def fetch_all_pages(q: str, page: int, max_pages: int, lang: str):
                                 "price": _item.get("price"),
                                 "pic_url": _item.get("pic_url"),
                                 "detail_url": _item.get("detail_url"),
+                                "promotion_price": _item.get("promotion_price"),
+                                "sales": _item.get("sales", 0),
+                                "tag_percent": _item.get("tag_percent", "0%"),
                                 "cached_at": datetime.datetime.utcnow().isoformat(),
-                                "raw_data": _item
+                                "search_tag": q.lower()
                             }},
                             upsert=True
                         )
@@ -335,7 +336,36 @@ async def query_items(
 ):
     db = get_db()
 
-    # Construct base response layout matching ItemListResponse
+    # 1. First, check if matching query data exists in MongoDB cache
+    cached_items = []
+    if db is not None:
+        cursor = db["products_cache"].find({"title": {"$regex": q.lower(), "$options": "i"}}).skip((page - 1) * 40).limit(40)
+        async for doc in cursor:
+            cached_items.append({
+                "title": doc.get("title"),
+                "pic_url": doc.get("pic_url"),
+                "price": doc.get("price"),
+                "promotion_price": doc.get("promotion_price", doc.get("price")),
+                "sales": doc.get("sales", 0),
+                "num_iid": doc.get("num_iid"),
+                "tag_percent": doc.get("tag_percent", "0%"),
+                "detail_url": doc.get("detail_url")
+            })
+
+    if cached_items:
+        print(f"Returning cached search results for query '{q}' from DB")
+        return {
+            "items": {
+                "page": str(page),
+                "real_total_results": len(cached_items),
+                "total_results": len(cached_items),
+                "page_size": 40,
+                "page_count": 1,
+                "item": cached_items
+            },
+        }
+
+    # 2. If no data exists in DB, call the 3rd party URL
     final_response = {
         "items": {
             "page": str(page),
@@ -353,11 +383,9 @@ async def query_items(
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # res = await client.get(url)
-                # if res.status_code == 200:
-                if True:
-                    # data = res.json()
-                    data = MOCK_ITEMS_RESPONSE
+                res = await client.get(url)
+                if res.status_code == 200:
+                    data = res.json()
 
                     # Safely handle data elements
                     items_data = data.get("items", {})
@@ -366,7 +394,7 @@ async def query_items(
                     for _item in items:
                         print('===============')
                         print(_item)
-                        # Save to MongoDB
+                        # Save to MongoDB without raw_data key
                         num_iid = _item.get("num_iid")
                         if num_iid and db is not None:
                             await db["products_cache"].update_one(
@@ -377,8 +405,11 @@ async def query_items(
                                     "price": _item.get("price"),
                                     "pic_url": _item.get("pic_url"),
                                     "detail_url": _item.get("detail_url"),
+                                    "promotion_price": _item.get("promotion_price"),
+                                    "sales": _item.get("sales", 0),
+                                    "tag_percent": _item.get("tag_percent", "0%"),
                                     "cached_at": datetime.datetime.utcnow().isoformat(),
-                                    "raw_data": _item
+                                    "search_tag": q.lower()
                                 }},
                                 upsert=True
                             )
@@ -394,6 +425,7 @@ async def query_items(
                             "item": items
                         }
 
+
                     max_pages = items_data.get("page_count", 1)
                     if max_pages > page:
                         background_tasks.add_task(fetch_all_pages, q, page + 1, max_pages, lang)
@@ -403,34 +435,7 @@ async def query_items(
             print(f"Error querying 3rd party API: {e}")
             pass
 
-    # Local fallback query from MongoDB
-    cached_items = []
-    if db is not None:
-        cursor = db["products_cache"].find({"title": {"$regex": q, "$options": "i"}}).limit(40)
-        async for doc in cursor:
-            cached_items.append({
-                "title": doc.get("title"),
-                "pic_url": doc.get("pic_url"),
-                "price": doc.get("price"),
-                "promotion_price": doc.get("price"),
-                "sales": doc.get("raw_data", {}).get("sales", 0),
-                "num_iid": doc.get("num_iid"),
-                "tag_percent": doc.get("raw_data", {}).get("tag_percent", "0%"),
-                "detail_url": doc.get("detail_url")
-            })
-
-    if cached_items:
-        final_response["items"] = {
-            "page": str(page),
-            "real_total_results": len(cached_items),
-            "total_results": len(cached_items),
-            "page_size": 40,
-            "page_count": 1,
-            "item": cached_items
-        }
-        return final_response
-
-    # If everything fails and no cache exists, use static mock items data
+    # If everything fails, use static mock items data
     return MOCK_ITEMS_RESPONSE
 
 
@@ -441,22 +446,34 @@ async def get_item_detail(
 ):
     db = get_db()
 
-    # 1. Try fetching from 3rd party API
+    # 1. First, check if product details exist in MongoDB cache
+    if db is not None:
+        cached_doc = await db["product_details"].find_one({"num_iid": num_iid})
+        if cached_doc:
+            print(f"Returning cached item details for num_iid={num_iid} from DB")
+            return cached_doc.get("raw_details")
+
+    # 2. If not found in cache, query 3rd party API
     if settings.api_key:
         url = f"https://api.icom.la/1688/api/call.php?api_key={settings.api_key}&item_get&num_iid={num_iid}&lang={lang}"
         print(f"Calling detail URL: {url}")
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # res = await client.get(url)
-                # if res.status_code == 200:
-                if True:
-                    data = MOCK_ITEMS_RESPONSE
+                res = await client.get(url)
+                if res.status_code == 200:
+                # if True:
+                    data = res.json()
+                    # data = MOCK_DETAILS_RESPONSE
                     item_detail = data.get("item", {})
 
                     if item_detail:
                         print('===============')
                         print(item_detail)
+
+                        final_detail_response = {
+                            "item": item_detail
+                        }
 
                         if db is not None:
                             await db["product_details"].update_one(
@@ -468,30 +485,17 @@ async def get_item_detail(
                                         "price": item_detail.get("price"),
                                         "pic_url": item_detail.get("pic_url"),
                                         "cached_at": datetime.datetime.utcnow().isoformat(),
-                                        "raw_details": data
+                                        "raw_details": final_detail_response
                                     }
                                 },
                                 upsert=True
                             )
-                        return data
+                        return final_detail_response
         except Exception as e:
             print(f"Error querying detail API: {e}")
             pass
 
-    # 2. Local fallback: Try to query cached product details from MongoDB
-    if db is not None:
-        cached_doc = await db["product_details"].find_one({"num_iid": num_iid})
-        if cached_doc:
-            return cached_doc.get("raw_details")
 
-    # 3. Last fallback: Return mock details payload adapted with the queried num_iid
-    fallback_response = dict(MOCK_DETAILS_RESPONSE)
-    fallback_response["item"] = dict(fallback_response["item"])
-    fallback_response["item"]["num_iid"] = num_iid
-    fallback_response["item"]["goods_id"] = num_iid
-    if "cn_source" in fallback_response["item"]:
-        fallback_response["item"]["cn_source"] = dict(fallback_response["item"]["cn_source"])
-        if "item" in fallback_response["item"]["cn_source"]:
-            fallback_response["item"]["cn_source"]["item"] = dict(fallback_response["item"]["cn_source"]["item"])
-            fallback_response["item"]["cn_source"]["item"]["goods_id"] = num_iid
-    return fallback_response
+
+
+

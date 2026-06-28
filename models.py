@@ -47,17 +47,17 @@ class ItemDetail(BaseModel):
     min_num: Optional[int] = 1
     detail_url: str
     pic_url: str
-    brand: Optional[str] = ""
-    brandId: Optional[str] = ""
+    brand: Optional[Any] = ""
+    brandId: Optional[Any] = ""
     rootCatId: Optional[int] = 0
     cid: Optional[int] = 0
-    crumbs: Optional[List[Any]] = []
+    crumbs: Optional[Any] = []
     created_time: Optional[str] = ""
     modified_time: Optional[str] = ""
     delist_time: Optional[str] = ""
     desc: Optional[str] = ""
-    desc_img: Optional[List[str]] = []
-    item_imgs: Optional[List[Dict[str, str]]] = []
+    desc_img: Optional[Any] = []
+    item_imgs: Optional[Any] = []
     item_weight: Optional[str] = ""
     item_size: Optional[str] = ""
     location: Optional[str] = ""
@@ -66,24 +66,24 @@ class ItemDetail(BaseModel):
     ems_fee: Optional[str] = ""
     shipping_to: Optional[str] = ""
     has_discount: Optional[str] = ""
-    video: Optional[str] = None
+    video: Optional[Any] = None
     is_virtual: Optional[str] = ""
     sample_id: Optional[str] = ""
     is_promotion: Optional[str] = ""
-    props_name: Optional[str] = ""
-    prop_imgs: Optional[Dict[str, Any]] = {}
-    property_alias: Optional[str] = ""
-    props: Optional[List[Dict[str, str]]] = []
+    props_name: Optional[Any] = ""
+    prop_imgs: Optional[Any] = {}
+    property_alias: Optional[Any] = ""
+    props: Optional[Any] = []
     total_sold: Optional[int] = 0
-    skus: Optional[Dict[str, Any]] = {}
-    seller_id: Optional[str] = None
+    skus: Optional[Any] = {}
+    seller_id: Optional[Any] = None
     sales: Optional[int] = 0
-    shop_id: Optional[str] = None
-    props_list: Optional[Dict[str, str]] = {}
-    seller_info: Optional[Dict[str, Any]] = {}
+    shop_id: Optional[Any] = None
+    props_list: Optional[Any] = {}
+    seller_info: Optional[Any] = {}
     tmall: Optional[str] = "false"
     warning: Optional[str] = ""
-    url_log: Optional[List[Any]] = []
+    url_log: Optional[Any] = []
     batch_price: Optional[str] = ""
     unit: Optional[str] = ""
     is_support_mix: Optional[bool] = None
@@ -91,12 +91,12 @@ class ItemDetail(BaseModel):
     mix_begin: Optional[int] = None
     mix_number: Optional[int] = None
     scale: Optional[int] = 1
-    priceRange: Optional[List[Any]] = []
-    priceRangeOriginal: Optional[List[Any]] = []
-    cn_source: Optional[Dict[str, Any]] = {}
+    priceRange: Optional[Any] = []
+    priceRangeOriginal: Optional[Any] = []
+    cn_source: Optional[Any] = {}
     weight: Optional[str] = ""
     goodstype: Optional[int] = 0
-    goods_id: Optional[int] = 0
+    goods_id: Optional[Any] = 0
 
 class ItemDetailResponse(BaseModel):
     item: ItemDetail
@@ -110,7 +110,7 @@ class ProductCacheDB(BaseModel):
     pic_url: str
     detail_url: str
     cached_at: Optional[str] = None
-    raw_data: Dict[str, Any]
+    raw_data: Optional[Dict[str, Any]] = None
 
     class Config:
         populate_by_name = True
