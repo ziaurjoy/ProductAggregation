@@ -17,11 +17,11 @@ class ItemSummary(BaseModel):
     title: str
     pic_url: str
     price: float
-    promotion_price: float
-    sales: int
+    promotion_price: Optional[float] = None
+    sales: Optional[int] = 0
     num_iid: int
-    tag_percent: str
-    detail_url: str
+    tag_percent: Optional[str] = "0%"
+    detail_url: Optional[str] = ""
 
 class ItemListContainer(BaseModel):
     page: str
