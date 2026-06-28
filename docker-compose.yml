@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: product-aggregation-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+  app:
+    build: .
+    container_name: product-aggregation-app
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - DATABASE_NAME=product_db
+      - API_KEY=everestgroup24@gmail.com
+    depends_on:
+      - mongodb
+    restart: always
+
+volumes:
+  mongo-data:
