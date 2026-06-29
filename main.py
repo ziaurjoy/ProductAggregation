@@ -128,7 +128,6 @@ async def fetch_all_pages(
     filter_val: Optional[str] = None
 ):
     if page > max_pages:
-        print(f"Finished fetching all pages (max: {max_pages})")
         return
 
     url = build_3rd_party_url(
@@ -136,7 +135,6 @@ async def fetch_all_pages(
         start_price=start_price, end_price=end_price, cat=cat, sort=sort,
         page_size=page_size, filter_val=filter_val
     )
-    print(f"Fetching page {page}/{max_pages} --- {url}")
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -149,8 +147,7 @@ async def fetch_all_pages(
                     q, start_price, end_price, cat, sort, page_size, filter_val
                 )
                 for _item in items:
-                    print('===============')
-                    print(_item)
+
                     num_iid = _item.get("num_iid")
                     if num_iid and db is not None:
                         await db["products_cache"].update_one(
@@ -217,8 +214,7 @@ async def fetch_all_pages_img(
                     img_url, start_price, end_price, cat, sort, page_size, filter_val
                 )
                 for _item in items:
-                    print('===============')
-                    print(_item)
+
                     num_iid = _item.get("num_iid")
                     if num_iid and db is not None:
                         await db["products_cache"].update_one(
@@ -351,8 +347,7 @@ async def query_items(
                     items = items_data.get("item", [])
 
                     for _item in items:
-                        print('===============')
-                        print(_item)
+
                         # Save to MongoDB without raw_data key
                         num_iid = _item.get("num_iid")
                         if num_iid and db is not None:
@@ -501,8 +496,7 @@ async def search_by_image(
                     items = items_data.get("item", [])
 
                     for _item in items:
-                        print('===============')
-                        print(_item)
+
                         # Save to MongoDB without raw_data key
                         num_iid = _item.get("num_iid")
                         if num_iid and db is not None:
