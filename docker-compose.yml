@@ -1,27 +1,21 @@
 version: '3.8'
 
 services:
-  mongodb:
-    image: mongo:6.0
-    container_name: product-aggregation-db
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    restart: always
-
   app:
     build: .
     container_name: product-aggregation-app
     ports:
-      - "8000:8000"
+      - '${PORT:-8000}:${PORT:-8000}'
     environment:
-      - MONGODB_URL=mongodb://mongodb:27017
-      - DATABASE_NAME=product_db
-      - API_KEY=everestgroup24@gmail.com
-    depends_on:
-      - mongodb
+      - MONGODB_URL=${MONGODB_URL}
+      - DATABASE_NAME=${DATABASE_NAME}
+      - API_KEY=${API_KEY}
+      - PORT=${PORT:-8000}
+    networks:
+      - shared-network
+
     restart: always
 
-volumes:
-  mongo-data:
+networks:
+  shared-network:
+    external: true
