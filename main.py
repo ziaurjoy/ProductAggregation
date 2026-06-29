@@ -60,6 +60,28 @@ def get_search_tag(
     return "|".join(parts)
 
 
+def get_mongo_sort(sort: Optional[str]):
+    mongo_sort = []
+    if sort:
+        if sort == "sale":
+            mongo_sort.append(("sales", 1))
+        elif sort == "_sale":
+            mongo_sort.append(("sales", -1))
+        elif sort == "bid":
+            mongo_sort.append(("price", 1))
+        elif sort == "_bid":
+            mongo_sort.append(("price", -1))
+        elif sort == "credit":
+            mongo_sort.append(("tag_percent", 1))
+        elif sort == "_credit":
+            mongo_sort.append(("tag_percent", -1))
+        elif sort == "cached_at":
+            mongo_sort.append(("cached_at", 1))
+        elif sort == "_cached_at":
+            mongo_sort.append(("cached_at", -1))
+    return mongo_sort if mongo_sort else None
+
+
 def build_3rd_party_url(
     base_url_type: str, # "item_search" or "item_search_img"
     api_key: str,
@@ -87,7 +109,7 @@ def build_3rd_party_url(
         url += f"&end_price={end_price}"
     if cat is not None:
         url += f"&cat={cat}"
-    if sort is not None:
+    if sort is not None and sort not in ("cached_at", "_cached_at"):
         url += f"&sort={sort}"
     if page_size is not None:
         url += f"&page_size={page_size}"
@@ -241,7 +263,7 @@ async def query_items(
     start_price: Optional[float] = Query(None, description="Start price filter"),
     end_price: Optional[float] = Query(None, description="End price filter"),
     cat: Optional[int] = Query(None, description="Category ID filter"),
-    sort: Optional[str] = Query(None, description="Sort option: [bid, _bid, sale, _sale, credit, _credit]"),
+    sort: Optional[str] = Query(None, description="Sort option: [bid, _bid, sale, _sale, credit, _credit, cached_at, _cached_at]"),
     page_size: Optional[int] = Query(40, ge=1, description="Number of items per page"),
     filter: Optional[str] = Query(None, description="Additional filter parameters e.g. filtId:1,2,3;city:Tianjin")
 ):
@@ -261,12 +283,16 @@ async def query_items(
                 {"search_tags": search_tag}
             ]
         })
-        cursor = db["products_cache"].find({
+        query_cursor = db["products_cache"].find({
             "$or": [
                 {"search_tag": search_tag},
                 {"search_tags": search_tag}
             ]
-        }).skip((page - 1) * limit_val).limit(limit_val)
+        })
+        mongo_sort = get_mongo_sort(sort)
+        if mongo_sort:
+            query_cursor = query_cursor.sort(mongo_sort)
+        cursor = query_cursor.skip((page - 1) * limit_val).limit(limit_val)
         async for doc in cursor:
             cached_items.append({
                 "title": doc.get("title"),
@@ -387,7 +413,7 @@ async def search_by_image(
     start_price: Optional[float] = Query(None, description="Start price filter"),
     end_price: Optional[float] = Query(None, description="End price filter"),
     cat: Optional[int] = Query(None, description="Category ID filter"),
-    sort: Optional[str] = Query(None, description="Sort option: [bid, _bid, sale, _sale, credit, _credit]"),
+    sort: Optional[str] = Query(None, description="Sort option: [bid, _bid, sale, _sale, credit, _credit, cached_at, _cached_at]"),
     page_size: Optional[int] = Query(40, ge=1, description="Number of items per page"),
     filter: Optional[str] = Query(None, description="Additional filter parameters e.g. filtId:1,2,3;city:Tianjin")
 ):
@@ -407,12 +433,16 @@ async def search_by_image(
                 {"search_tags": search_tag}
             ]
         })
-        cursor = db["products_cache"].find({
+        query_cursor = db["products_cache"].find({
             "$or": [
                 {"search_tag": search_tag},
                 {"search_tags": search_tag}
             ]
-        }).skip((page - 1) * limit_val).limit(limit_val)
+        })
+        mongo_sort = get_mongo_sort(sort)
+        if mongo_sort:
+            query_cursor = query_cursor.sort(mongo_sort)
+        cursor = query_cursor.skip((page - 1) * limit_val).limit(limit_val)
         async for doc in cursor:
             cached_items.append({
                 "title": doc.get("title"),
