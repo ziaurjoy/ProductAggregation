@@ -9,12 +9,8 @@ class DatabaseHelper:
     def connect(self):
         import os
         mongodb_url = os.getenv("MONGODB_URL", settings.mongodb_url)
-        database_name = os.getenv("DATABASE_NAME", settings.database_name)
-        if database_name and (database_name.startswith("mongodb://") or database_name.startswith("mongodb+srv://")):
-            mongodb_url = database_name
-            database_name = "aggregation_product_db"
+
         self.client = AsyncIOMotorClient(mongodb_url)
-        self.db = self.client[database_name]
 
     def disconnect(self):
         if self.client:
