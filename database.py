@@ -11,6 +11,7 @@ class DatabaseHelper:
         mongodb_url = os.getenv("MONGODB_URL", settings.mongodb_url)
 
         self.client = AsyncIOMotorClient(mongodb_url)
+        self.db = self.client.get_default_database()
 
     def disconnect(self):
         if self.client:
