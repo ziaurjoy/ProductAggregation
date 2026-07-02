@@ -358,7 +358,6 @@ async def query_items(
     print('cached_items===', cached_items)
     if cached_items:
         page_count = math.ceil(total_cached / limit_val) if limit_val > 0 else 1
-        print(f"[CACHE HIT] query='{q}' search_key='{search_key}' page={page} total={total_cached}")
         return {
             "items": {
                 "page": str(page),
@@ -510,7 +509,6 @@ async def search_by_image(
 
     if cached_items:
         page_count = math.ceil(total_cached / limit_val) if limit_val > 0 else 1
-        print(f"[CACHE HIT] imgid='{imgid}' search_key='{search_key}' page={page} total={total_cached}")
         return {
             "items": {
                 "page": str(page),
@@ -625,7 +623,6 @@ async def get_item_detail(
         try:
             cached_doc = await db["product_details"].find_one({"num_iid": num_iid})
             if cached_doc:
-                print(f"[CACHE HIT] item detail num_iid={num_iid}")
                 return cached_doc.get("raw_details")
         except Exception as db_err:
             print(f"MongoDB detail cache lookup failed: {db_err}")
