@@ -253,6 +253,7 @@ async def fetch_all_pages_img(
         start_price=start_price, end_price=end_price, cat=cat, sort=sort,
         page_size=page_size, filter_val=filter_val
     )
+    print('===url', url)
     print(f"Fetching image page {page}/{max_pages} --- {url}")
 
     try:
@@ -533,6 +534,7 @@ async def search_by_image(
         }
     }
 
+
     if settings.api_key:
         url = build_3rd_party_url(
             "item_search_img", settings.api_key, imgid=imgid, page=page, lang=lang,
@@ -596,10 +598,11 @@ async def search_by_image(
 
                     max_pages = items_meta.get("page_count", 1)
                     if max_pages > page:
-                        background_tasks.add_task(
-                            fetch_all_pages_img, imgid, page + 1, max_pages, lang,
-                            start_price, end_price, cat, sort, page_size, filter
-                        )
+                        # background_tasks.add_task(
+                        #     fetch_all_pages_img, imgid, page + 1, max_pages, lang,
+                        #     start_price, end_price, cat, sort, page_size, filter
+                        # )
+                        pass
 
                     return final_response
 
