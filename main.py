@@ -327,6 +327,7 @@ async def query_items(
     db = get_db()
     # search_key = only the query term; price/sort/page_size are applied at query time
     search_key = q.lower()
+    print('====search_key', search_key)
     limit_val = page_size if page_size is not None else 20
 
     # 1. Check MongoDB cache first
@@ -335,8 +336,10 @@ async def query_items(
     if db is not None:
         try:
             cache_filter = build_cache_filter(search_key, start_price, end_price)
+
             total_cached = await db["products_cache"].count_documents(cache_filter)
             query_cursor = db["products_cache"].find(cache_filter)
+            # print('cache_filter===', cache_filter)
             mongo_sort = get_mongo_sort(sort)
             if mongo_sort:
                 query_cursor = query_cursor.sort(mongo_sort)
@@ -356,7 +359,7 @@ async def query_items(
             print(f"MongoDB cache lookup failed: {db_err}")
             cached_items = []
             total_cached = 0
-    print('cached_items===', cached_items)
+    # print('cached_items===', cached_items)
     if cached_items:
         page_count = math.ceil(total_cached / limit_val) if limit_val > 0 else 1
         return {
