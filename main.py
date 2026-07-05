@@ -327,7 +327,6 @@ async def query_items(
     db = get_db()
     # search_key = only the query term; price/sort/page_size are applied at query time
     search_key = q.lower()
-    print('====search_key', search_key)
     limit_val = page_size if page_size is not None else 20
 
     # 1. Check MongoDB cache first
