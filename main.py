@@ -31,7 +31,7 @@ async def root():
     return {
         "message": "Welcome to the Product Aggregation API!",
         "endpoints": {
-            "query_items": "/items?q=nikon&page=1&lang=en",
+            "query_items": "/items?q=nikon&page=1&lang=zh-CN",
             "item_details": "/items/{num_iid}"
         },
         "docs": "/docs"
@@ -130,7 +130,7 @@ def build_3rd_party_url(
     q: Optional[str] = None,
     imgid: Optional[str] = None,
     page: int = 1,
-    lang: str = "en",
+    lang: str = "zh-CN",
     start_price: Optional[float] = None,
     end_price: Optional[float] = None,
     cat: Optional[int] = None,
@@ -619,7 +619,7 @@ async def search_by_image(
 @app.get("/items/{num_iid}", response_model=ItemDetailResponse, status_code=status.HTTP_200_OK)
 async def get_item_detail(
     num_iid: int,
-    lang: str = Query("en", description="Language of result")
+    lang: str = Query("zh-CN", description="Language of result")
 ):
     db = get_db()
 
