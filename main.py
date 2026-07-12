@@ -31,7 +31,8 @@ async def root():
     return {
         "message": "Welcome to the Product Aggregation API!",
         "endpoints": {
-            "query_items": "/items?q=nikon&page=1&lang=zh-CN",
+            # "query_items": "/items?q=nikon&page=1&lang=zh-CN",
+            "query_items": "/items?&page=1&lang=zh-CN",
             "item_details": "/items/{num_iid}"
         },
         "docs": "/docs"
@@ -314,7 +315,7 @@ async def fetch_all_pages_img(
 @app.get("/items", response_model=ItemListResponse, status_code=status.HTTP_200_OK)
 async def query_items(
     background_tasks: BackgroundTasks,
-    q: str = Query("nikon", description="Search query"),
+    q: str = Query("", description="Search query"),
     page: int = Query(1, ge=1, description="Page number"),
     lang: str = Query("en", description="Language of result"),
     start_price: Optional[float] = Query(None, description="Start price filter"),
@@ -334,133 +335,119 @@ async def query_items(
     total_cached = 0
     if db is not None:
         try:
-            cache_filter = build_cache_filter(search_key, start_price, end_price)
+            # 1. Homepage Query: q is empty or default 'trending' -> Fetch random products using $sample
+            if search_key in ("trending", ""):
+                match_stage = {}
+                price_filter: dict = {}
+                if start_price is not None:
+                    price_filter["$gte"] = start_price
+                if end_price is not None:
+                    price_filter["$lte"] = end_price
+                if price_filter:
+                    match_stage["price"] = price_filter
 
-            total_cached = await db["products_cache"].count_documents(cache_filter)
-            query_cursor = db["products_cache"].find(cache_filter)
-            # print('cache_filter===', cache_filter)
-            mongo_sort = get_mongo_sort(sort)
-            if mongo_sort:
-                query_cursor = query_cursor.sort(mongo_sort)
-            cursor = query_cursor.skip((page - 1) * limit_val).limit(limit_val)
-            async for doc in cursor:
-                cached_items.append({
-                    "title": doc.get("title"),
-                    "pic_url": doc.get("pic_url"),
-                    "price": doc.get("price"),
-                    "promotion_price": doc.get("promotion_price", doc.get("price")),
-                    "sales": doc.get("sales", 0),
-                    "num_iid": doc.get("num_iid"),
-                    "tag_percent": doc.get("tag_percent", "0%"),
-                    "detail_url": doc.get("detail_url")
-                })
+                total_cached = await db["products_cache"].count_documents(match_stage)
+                pipeline = [{"$sample": {"size": limit_val}}]
+                if match_stage:
+                    pipeline.insert(0, {"$match": match_stage})
+
+                query_cursor = db["products_cache"].aggregate(pipeline)
+                async for doc in query_cursor:
+                    cached_items.append({
+                        "title": doc.get("title"),
+                        "pic_url": doc.get("pic_url"),
+                        "price": doc.get("price"),
+                        "promotion_price": doc.get("promotion_price", doc.get("price")),
+                        "sales": doc.get("sales", 0),
+                        "num_iid": doc.get("num_iid"),
+                        "tag_percent": doc.get("tag_percent", "0%"),
+                        "detail_url": doc.get("detail_url")
+                    })
+
+            # 2. Specific Search Query: Exact Tag Match
+            if not cached_items:
+                cache_filter = build_cache_filter(search_key, start_price, end_price)
+                total_cached = await db["products_cache"].count_documents(cache_filter)
+                if total_cached > 0:
+                    query_cursor = db["products_cache"].find(cache_filter)
+                    mongo_sort = get_mongo_sort(sort)
+                    if mongo_sort:
+                        query_cursor = query_cursor.sort(mongo_sort)
+                    cursor = query_cursor.skip((page - 1) * limit_val).limit(limit_val)
+                    async for doc in cursor:
+                        cached_items.append({
+                            "title": doc.get("title"),
+                            "pic_url": doc.get("pic_url"),
+                            "price": doc.get("price"),
+                            "promotion_price": doc.get("promotion_price", doc.get("price")),
+                            "sales": doc.get("sales", 0),
+                            "num_iid": doc.get("num_iid"),
+                            "tag_percent": doc.get("tag_percent", "0%"),
+                            "detail_url": doc.get("detail_url")
+                        })
+
+            # 3. Specific Search Query: Regex Title Match Fallback
+            if not cached_items:
+                regex_filter = {"title": {"$regex": search_key, "$options": "i"}}
+                price_filter: dict = {}
+                if start_price is not None:
+                    price_filter["$gte"] = start_price
+                if end_price is not None:
+                    price_filter["$lte"] = end_price
+                if price_filter:
+                    regex_filter["price"] = price_filter
+
+                total_cached = await db["products_cache"].count_documents(regex_filter)
+                if total_cached > 0:
+                    query_cursor = db["products_cache"].find(regex_filter)
+                    mongo_sort = get_mongo_sort(sort)
+                    if mongo_sort:
+                        query_cursor = query_cursor.sort(mongo_sort)
+                    cursor = query_cursor.skip((page - 1) * limit_val).limit(limit_val)
+                    async for doc in cursor:
+                        cached_items.append({
+                            "title": doc.get("title"),
+                            "pic_url": doc.get("pic_url"),
+                            "price": doc.get("price"),
+                            "promotion_price": doc.get("promotion_price", doc.get("price")),
+                            "sales": doc.get("sales", 0),
+                            "num_iid": doc.get("num_iid"),
+                            "tag_percent": doc.get("tag_percent", "0%"),
+                            "detail_url": doc.get("detail_url")
+                        })
+
+            # 4. Fallback - General Mixed Sample
+            if not cached_items:
+                total_cached = await db["products_cache"].count_documents({})
+                pipeline = [{"$sample": {"size": limit_val}}]
+                query_cursor = db["products_cache"].aggregate(pipeline)
+                async for doc in query_cursor:
+                    cached_items.append({
+                        "title": doc.get("title"),
+                        "pic_url": doc.get("pic_url"),
+                        "price": doc.get("price"),
+                        "promotion_price": doc.get("promotion_price", doc.get("price")),
+                        "sales": doc.get("sales", 0),
+                        "num_iid": doc.get("num_iid"),
+                        "tag_percent": doc.get("tag_percent", "0%"),
+                        "detail_url": doc.get("detail_url")
+                    })
         except Exception as db_err:
             print(f"MongoDB cache lookup failed: {db_err}")
             cached_items = []
             total_cached = 0
-    # print('cached_items===', cached_items)
-    if cached_items:
-        page_count = math.ceil(total_cached / limit_val) if limit_val > 0 else 1
-        return {
-            "items": {
-                "page": str(page),
-                "real_total_results": total_cached,
-                "total_results": total_cached,
-                "page_size": limit_val,
-                "page_count": page_count,
-                "item": cached_items
-            },
-        }
 
-    # 2. Cache miss — call 3rd party API
-    print(f"[CACHE MISS] query='{q}' search_key='{search_key}' — calling upstream API")
-    final_response = {
+    page_count = math.ceil(total_cached / limit_val) if limit_val > 0 else 1
+    return {
         "items": {
             "page": str(page),
-            "real_total_results": 0,
-            "total_results": 0,
+            "real_total_results": total_cached,
+            "total_results": total_cached,
             "page_size": limit_val,
-            "page_count": 1,
-            "item": []
+            "page_count": page_count,
+            "item": cached_items
         },
     }
-
-    if settings.api_key:
-        url = build_3rd_party_url(
-            "item_search", settings.api_key, q=q, page=page, lang=lang,
-            start_price=start_price, end_price=end_price, cat=cat, sort=sort,
-            page_size=page_size, filter_val=filter
-        )
-        print(f"Calling upstream: {url}")
-
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.get(url)
-                data = res.json()
-
-                # Surface upstream errors clearly
-                if isinstance(data, dict) and "error" in data:
-                    raise HTTPException(
-                        status_code=status.HTTP_502_BAD_GATEWAY,
-                        detail=f"Upstream API error: {data['error']}"
-                    )
-
-                if res.status_code == 200:
-                    items, items_meta = extract_items_and_meta(data, page, limit_val)
-                    # print('===data', data)
-                    # Cache results — only store q as search_tags
-                    if db is not None:
-                        for _item in items:
-                            num_iid = _item.get("num_iid")
-                            if num_iid:
-                                try:
-                                    await db["products_cache"].update_one(
-                                        {"num_iid": num_iid},
-                                        {
-                                            "$set": {
-                                                "num_iid": num_iid,
-                                                "title": _item.get("title"),
-                                                "price": _item.get("price"),
-                                                "pic_url": _item.get("pic_url"),
-                                                "detail_url": _item.get("detail_url"),
-                                                "promotion_price": _item.get("promotion_price"),
-                                                "sales": _item.get("sales", 0),
-                                                "tag_percent": _item.get("tag_percent", "0%"),
-                                                "cached_at": datetime.datetime.utcnow().isoformat()
-                                            },
-                                            "$addToSet": {
-                                                "search_tags": search_key
-                                            }
-                                        },
-                                        upsert=True
-                                    )
-                                except Exception as db_err:
-                                    print(f"DB write error: {db_err}")
-
-                    final_response["items"] = {
-                        "page": str(items_meta.get("page", page)),
-                        "real_total_results": items_meta.get("real_total_results", 0),
-                        "total_results": items_meta.get("total_results", 0),
-                        "page_size": limit_val,
-                        "page_count": items_meta.get("page_count", 1),
-                        "item": items[:limit_val]
-                    }
-
-                    max_pages = items_meta.get("page_count", 1)
-                    if max_pages > page:
-                        background_tasks.add_task(
-                            fetch_all_pages, q, page + 1, max_pages, lang,
-                            start_price, end_price, cat, sort, page_size, filter
-                        )
-
-                    return final_response
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Error querying upstream API: {e}")
-
-    return final_response
 
 
 @app.get("/items/search-by-image", response_model=ItemListResponse, status_code=status.HTTP_200_OK)
@@ -618,15 +605,24 @@ async def search_by_image(
 
 @app.get("/items/{num_iid}", response_model=ItemDetailResponse, status_code=status.HTTP_200_OK)
 async def get_item_detail(
-    num_iid: int,
+    num_iid: str,
     lang: str = Query("zh-CN", description="Language of result")
 ):
     db = get_db()
-
     # 1. Check MongoDB cache first
     if db is not None:
         try:
-            cached_doc = await db["product_details"].find_one({"num_iid": num_iid})
+            # Query for both string and integer representation to support heterogeneous cached IDs
+            query_ids = [num_iid]
+            if num_iid.isdigit():
+                query_ids.append(int(num_iid))
+            else:
+                try:
+                    query_ids.append(str(int(num_iid)))
+                except ValueError:
+                    pass
+
+            cached_doc = await db["product_details"].find_one({"num_iid": {"$in": query_ids}})
             if cached_doc:
                 return cached_doc.get("raw_details")
         except Exception as db_err:
@@ -670,11 +666,27 @@ async def get_item_detail(
                             except Exception as db_err:
                                 print(f"MongoDB detail cache write failed: {db_err}")
                         return final_detail_response
+                    else:
+                        msg = data.get("msg") or "Item not found or upstream token expired."
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Upstream API error: {msg}"
+                        )
 
         except HTTPException:
             raise
         except Exception as e:
             print(f"Error querying detail API: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to query upstream API: {e}"
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Item with ID {num_iid} not found."
+    )
+
 
 
 
