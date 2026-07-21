@@ -101,6 +101,14 @@ class ItemDetail(BaseModel):
 class ItemDetailResponse(BaseModel):
     item: ItemDetail
 
+class Seller(BaseModel):
+    title: Optional[str] = None
+    desc: Optional[str] = None
+    detail: Optional[List[Dict[str, List[Dict[str, str]]]]] = None
+
+class SellerResponse(BaseModel):
+    seller: Seller
+
 # MongoDB schema representation for product logs/cache
 class ProductCacheDB(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)

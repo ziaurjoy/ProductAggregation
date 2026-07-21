@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, status, Query, BackgroundTasks
 
 from config import settings
 from database import db_helper, get_db
-from models import ItemListResponse, ItemDetailResponse
+from models import ItemListResponse, ItemDetailResponse, SellerResponse
 
 
 @asynccontextmanager
@@ -686,6 +686,79 @@ async def get_item_detail(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Item with ID {num_iid} not found."
     )
+
+
+@app.get("/seller/{sid}", response_model=SellerResponse, status_code=status.HTTP_200_OK)
+async def get_seller_info(
+    sid: str
+):
+    if settings.api_key:
+        url = f"https://api.icom.la/1688/api/call.php?api_key={settings.api_key}&item_get_shop&sid={sid}"
+        print(f"Fetching seller info from upstream: {url}")
+
+        # return {
+        #     "seller": {
+        #         "title": "Zhongshan Dianzhangmeng New Energy Co., Ltd.",
+        #         "desc": "Professional manufacturer of RV lithium batteries...",
+        #         "detail": [
+        #             {
+        #                 "Company Information": [
+        #                     {"Company Name": "Zhongshan Dianzhangmeng New Energy Co., Ltd."},
+        #                     {"Established": "2020"},
+        #                     {"Business Type": "Manufacturer"},
+        #                     {"Location": "Zhongshan, Guangdong, China"}
+        #                 ]
+        #             },
+        #             {
+        #                 "Factory Information": [
+        #                     {"Factory Area": "5000㎡"},
+        #                     {"Production Lines": "6"},
+        #                     {"Employees": "120"}
+        #                 ]
+        #             },
+        #             {
+        #                 "Certifications": [
+        #                     {"ISO9001": "Certified"},
+        #                     {"CE": "Certified"},
+        #                     {"RoHS": "Certified"}
+        #                 ]
+        #             }
+        #         ]
+        #     }
+        # }
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.get(url)
+                data = res.json()
+
+                if "error" in data and data["error"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Upstream API error: {data['error']}"
+                    )
+
+                if res.status_code == 200:
+                    return {
+                        "seller": {
+                            "title": data.get("title"),
+                            "desc": data.get("desc"),
+                            "detail": data.get("detail")
+                        }
+                    }
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error querying seller API: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to query upstream API: {e}"
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="API Key is not configured."
+    )
+
 
 
 
